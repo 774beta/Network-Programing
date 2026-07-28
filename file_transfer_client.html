@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ファイル転送クライアント</title>
+</head>
+<body>
+  <h1>ファイル転送クライアント</h1>
+  <p>接続先: <span id="server_info">ws://131.206.37.50:50000</span></p>
+  <p id="status">未接続</p>
+
+  <form name="student_form" action="">
+    <label for="student_id">学籍番号（半角8文字）:</label>
+    <input type="text" name="student_id" id="student_id" maxlength="8" pattern="[A-Za-z0-9]{8}" value="242C1072">
+    <input type="button" name="send" id="send_button" value="ファイル取得">
+  </form>
+
+  <h2>受信内容</h2>
+  <pre id="received_text"></pre>
+
+  <script>
+    const SERVER_URL = 'ws://131.206.37.50:50000';
+    const END_MESSAGE = 'exit_send';
+
+    const statusArea = document.getElementById('status');
+    const receivedText = document.getElementById('received_text');
+    const sendButton = document.getElementById('send_button');
+    const studentIdInput = document.getElementById('student_id');
+
+    let ws = null;
+    let receivedChunks = [];
+    let outputFileName = '';
+    let transferActive = false;
+
+    function setStatus(message) {
+      statusArea.textContent = message;
+      console.log(message);
+    }
+
+    function openConnection() {
+      ws = new WebSocket(SERVER_URL);
+
+      ws.addEventListener('open', () => {
+        setStatus(`接続完了: ${SERVER_URL}`);
+      });
+
+      ws.addEventListener('message', event => {
+        const message = event.data;
+
+        if (!transferActive) {
+          console.log(message);
+          return;
+        }
+
+        if (message === END_MESSAGE) {
+          transferActive = false;
+          setStatus(`受信終了: ${outputFileName}`);
+          downloadCopyFile(outputFileName, receivedChunks.join(''));
+          return;
+        }
+
+        console.log(message);
+        receivedChunks.push(message);
+        receivedText.textContent += message;
+      });
+
+      ws.addEventListener('close', () => {
+        setStatus('接続が切断されました。');
+      });
+
+      ws.addEventListener('error', () => {
+        setStatus('接続エラーが発生しました。');
+      });
+    }
+
+    function downloadCopyFile(fileName, text) {
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    sendButton.addEventListener('click', () => {
+      const studentId = studentIdInput.value.trim();
+
+      if (!/^[A-Za-z0-9]{8}$/.test(studentId)) {
+        setStatus('学籍番号は半角8文字で入力してください。');
+        return;
+      }
+
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        setStatus('サーバに接続されていません。');
+        return;
+      }
+
+      receivedChunks = [];
+      receivedText.textContent = '';
+      outputFileName = `${studentId}-copy.txt`;
+      transferActive = true;
+      setStatus(`送信: ${studentId} / 保存予定: ${outputFileName}`);
+      ws.send(studentId);
+    });
+
+    openConnection();
+  </script>
+</body>
+</html>

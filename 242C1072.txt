@@ -1,0 +1,1 @@
+This is a sample text file for student ID 242C1072. The file transfer server sends this content to the WebSocket client in chunks of 80 characters, then sends exit_send when the transfer has finished.
